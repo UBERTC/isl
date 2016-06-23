@@ -326,7 +326,7 @@ __isl_give isl_local_space *isl_basic_set_get_local_space(
 /* For each known div d = floor(f/m), add the constraints
  *
  *		f - m d >= 0
- *		-(f-(n-1)) + m d >= 0
+ *		-(f-(m-1)) + m d >= 0
  *
  * Do not finalize the result.
  */
@@ -4483,7 +4483,7 @@ static int add_upper_div_constraint(__isl_keep isl_basic_map *bmap,
 
 /* For a div d = floor(f/m), add the constraint
  *
- *		-(f-(n-1)) + m d >= 0
+ *		-(f-(m-1)) + m d >= 0
  */
 static int add_lower_div_constraint(__isl_keep isl_basic_map *bmap,
 	unsigned pos, isl_int *div)
@@ -4505,11 +4505,11 @@ static int add_lower_div_constraint(__isl_keep isl_basic_map *bmap,
 /* For a div d = floor(f/m), add the constraints
  *
  *		f - m d >= 0
- *		-(f-(n-1)) + m d >= 0
+ *		-(f-(m-1)) + m d >= 0
  *
  * Note that the second constraint is the negation of
  *
- *		f - m d >= n
+ *		f - m d >= m
  */
 int isl_basic_map_add_div_constraints_var(__isl_keep isl_basic_map *bmap,
 	unsigned pos, isl_int *div)
@@ -4540,7 +4540,7 @@ int isl_basic_map_add_div_constraints(struct isl_basic_map *bmap, unsigned div)
 /* For each known div d = floor(f/m), add the constraints
  *
  *		f - m d >= 0
- *		-(f-(n-1)) + m d >= 0
+ *		-(f-(m-1)) + m d >= 0
  *
  * Remove duplicate constraints in case of some these div constraints
  * already appear in "bmap".
@@ -4571,7 +4571,7 @@ __isl_give isl_basic_map *isl_basic_map_add_known_div_constraints(
  *
  * if sign < 0 or the constraint
  *
- *		-(f-(n-1)) + m d >= 0
+ *		-(f-(m-1)) + m d >= 0
  *
  * if sign > 0.
  */
@@ -8208,57 +8208,69 @@ error:
  * The expansion itself is given by "exp" while the resulting
  * list of divs is given by "div".
  *
- * Move the integer divisions of "bset" into the right position
+ * Move the integer divisions of "bmap" into the right position
  * according to "exp" and then introduce the additional integer
  * divisions, adding div constraints.
  * The moving should be done first to avoid moving coefficients
  * in the definitions of the extra integer divisions.
  */
-__isl_give isl_basic_set *isl_basic_set_expand_divs(
-	__isl_take isl_basic_set *bset, __isl_take isl_mat *div, int *exp)
+__isl_give isl_basic_map *isl_basic_map_expand_divs(
+	__isl_take isl_basic_set *bmap, __isl_take isl_mat *div, int *exp)
 {
 	int i, j;
 	int n_div;
 
-	bset = isl_basic_set_cow(bset);
-	if (!bset || !div)
+	bmap = isl_basic_map_cow(bmap);
+	if (!bmap || !div)
 		goto error;
 
-	if (div->n_row < bset->n_div)
+	if (div->n_row < bmap->n_div)
 		isl_die(isl_mat_get_ctx(div), isl_error_invalid,
 			"not an expansion", goto error);
 
-	n_div = bset->n_div;
-	bset = isl_basic_map_extend_space(bset, isl_space_copy(bset->dim),
+	n_div = bmap->n_div;
+	bmap = isl_basic_map_extend_space(bmap, isl_space_copy(bmap->dim),
 					    div->n_row - n_div, 0,
 					    2 * (div->n_row - n_div));
 
 	for (i = n_div; i < div->n_row; ++i)
-		if (isl_basic_set_alloc_div(bset) < 0)
+		if (isl_basic_map_alloc_div(bmap) < 0)
 			goto error;
 
 	for (j = n_div - 1; j >= 0; --j) {
 		if (exp[j] == j)
 			break;
-		isl_basic_map_swap_div(bset, j, exp[j]);
+		isl_basic_map_swap_div(bmap, j, exp[j]);
 	}
 	j = 0;
 	for (i = 0; i < div->n_row; ++i) {
 		if (j < n_div && exp[j] == i) {
 			j++;
 		} else {
-			isl_seq_cpy(bset->div[i], div->row[i], div->n_col);
-			if (isl_basic_map_add_div_constraints(bset, i) < 0)
+			isl_seq_cpy(bmap->div[i], div->row[i], div->n_col);
+			if (!isl_basic_map_div_is_known(bmap, i))
+				continue;
+			if (isl_basic_map_add_div_constraints(bmap, i) < 0)
 				goto error;
 		}
 	}
 
 	isl_mat_free(div);
-	return bset;
+	return bmap;
 error:
-	isl_basic_set_free(bset);
+	isl_basic_map_free(bmap);
 	isl_mat_free(div);
 	return NULL;
+}
+
+/* Apply the expansion computed by isl_merge_divs.
+ * The expansion itself is given by "exp" while the resulting
+ * list of divs is given by "div".
+ */
+__isl_give isl_basic_set *isl_basic_set_expand_divs(
+	__isl_take isl_basic_set *bset, __isl_take isl_mat *div, int *exp)
+{
+	return isl_basic_map_expand_divs(bset, div, exp);
 }
 
 /* Look for a div in dst that corresponds to the div "div" in src.

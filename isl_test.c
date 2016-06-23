@@ -1837,6 +1837,33 @@ struct {
 				"2*floor((c)/2) = c and 0 <= a <= 192;"
 		"[224, 224, b, c] : 2*floor((b)/2) = b and 2*floor((c)/2) = c }"
 	},
+	{ 1, "[n] -> { [a,b] : (exists e : 1 <= a <= 7e and 9e <= b <= n) or "
+				"(0 <= a <= b <= n) }" },
+	{ 1, "{ [a, b] : 0 <= a <= 2 and b >= 0 and "
+		"((0 < b <= 13) or (2*floor((a + b)/2) >= -5 + a + 2b)) }" },
+	{ 1, "{ [a] : (2 <= a <= 5) or (a mod 2 = 1 and 1 <= a <= 5) }" },
+	{ 1, "{ [a, b, c] : (b = -1 + a and 0 < a <= 3 and "
+				"9*floor((-4a + 2c)/9) <= -3 - 4a + 2c) or "
+			"(exists (e0 = floor((-16 + 2c)/9): a = 4 and "
+				"b = 3 and 9e0 <= -19 + 2c)) }" },
+	{ 0, "{ [a, b, c] : (b <= 2 and b <= -2 + a) or "
+			"(b = -1 + a and 0 < a <= 3 and "
+				"9*floor((-4a + 2c)/9) <= -3 - 4a + 2c) or "
+			"(exists (e0 = floor((-16 + 2c)/9): a = 4 and "
+				"b = 3 and 9e0 <= -19 + 2c)) }" },
+	{ 1, "{ [y, x] : (x - y) mod 3 = 2 and 2 <= y <= 200 and 0 <= x <= 2;"
+		"[1, 0] }" },
+	{ 1, "{ [x, y] : (x - y) mod 3 = 2 and 2 <= y <= 200 and 0 <= x <= 2;"
+		"[0, 1] }" },
+	{ 1, "{ [1, y] : -1 <= y <= 1; [x, -x] : 0 <= x <= 1 }" },
+	{ 1, "{ [1, y] : 0 <= y <= 1; [x, -x] : 0 <= x <= 1 }" },
+	{ 1, "{ [x, y] : 0 <= x <= 10 and x - 4*floor(x/4) <= 1 and y <= 0; "
+	       "[x, y] : 0 <= x <= 10 and x - 4*floor(x/4) > 1 and y <= 0; "
+	       "[x, y] : 0 <= x <= 10 and x - 5*floor(x/5) <= 1 and 0 < y; "
+	       "[x, y] : 0 <= x <= 10 and x - 5*floor(x/5) > 1 and 0 < y }" },
+	{ 1, "{ [x, 0] : 0 <= x <= 10 and x mod 2 = 0; "
+	       "[x, 0] : 0 <= x <= 10 and x mod 2 = 1; "
+	       "[x, y] : 0 <= x <= 10 and 1 <= y <= 10 }" },
 };
 
 /* A specialized coalescing test case that would result
@@ -4873,6 +4900,40 @@ static int test_eval(isl_ctx *ctx)
 	return 0;
 }
 
+/* Descriptions of sets that are tested for reparsing after printing.
+ */
+const char *output_tests[] = {
+	"{ [1, y] : 0 <= y <= 1; [x, -x] : 0 <= x <= 1 }",
+};
+
+/* Check that printing a set and reparsing a set from the printed output
+ * results in the same set.
+ */
+static int test_output_set(isl_ctx *ctx)
+{
+	int i;
+	char *str;
+	isl_set *set1, *set2;
+	isl_bool equal;
+
+	for (i = 0; i < ARRAY_SIZE(output_tests); ++i) {
+		set1 = isl_set_read_from_str(ctx, output_tests[i]);
+		str = isl_set_to_str(set1);
+		set2 = isl_set_read_from_str(ctx, str);
+		free(str);
+		equal = isl_set_is_equal(set1, set2);
+		isl_set_free(set1);
+		isl_set_free(set2);
+		if (equal < 0)
+			return -1;
+		if (!equal)
+			isl_die(ctx, isl_error_unknown,
+				"parsed output not the same", return -1);
+	}
+
+	return 0;
+}
+
 int test_output(isl_ctx *ctx)
 {
 	char *s;
@@ -4880,6 +4941,9 @@ int test_output(isl_ctx *ctx)
 	isl_pw_aff *pa;
 	isl_printer *p;
 	int equal;
+
+	if (test_output_set(ctx) < 0)
+		return -1;
 
 	str = "[x] -> { [1] : x % 4 <= 2; [2] : x = 3 }";
 	pa = isl_pw_aff_read_from_str(ctx, str);
