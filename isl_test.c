@@ -1865,6 +1865,8 @@ struct {
 	{ 1, "{ [x, 0] : 0 <= x <= 10 and x mod 2 = 0; "
 	       "[x, 0] : 0 <= x <= 10 and x mod 2 = 1; "
 	       "[x, y] : 0 <= x <= 10 and 1 <= y <= 10 }" },
+	{ 1, "{ [a] : a <= 8 and "
+			"(a mod 10 = 7 or a mod 10 = 8 or a mod 10 = 9) }" },
 };
 
 /* A specialized coalescing test case that would result
@@ -2303,6 +2305,8 @@ struct {
 	    "[a] -> [1] }",
 	  "{ [a] -> [b = 1] : a >= 510 or a <= 0; "
 	    "[a] -> [b = 0] : 0 < a <= 509 }" },
+	{ "{ rat: [i] : 1 <= 2i <= 9 }", "{ rat: [i] : 2i = 1 }" },
+	{ "{ rat: [i] : 1 <= 2i <= 9 or i >= 10 }", "{ rat: [i] : 2i = 1 }" },
 };
 
 static int test_lexmin(struct isl_ctx *ctx)

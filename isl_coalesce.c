@@ -414,6 +414,9 @@ static enum isl_change fuse(int i, int j, struct isl_coalesce_info *info,
 	fused = add_valid_constraints(fused, &info[j], 1 + total);
 	if (!fused)
 		goto error;
+	if (ISL_F_ISSET(info[i].bmap, ISL_BASIC_MAP_RATIONAL) &&
+	    ISL_F_ISSET(info[j].bmap, ISL_BASIC_MAP_RATIONAL))
+		ISL_F_SET(fused, ISL_BASIC_MAP_RATIONAL);
 
 	for (k = 0; k < info[i].bmap->n_div; ++k) {
 		int l = isl_basic_map_alloc_div(fused);
@@ -444,9 +447,6 @@ static enum isl_change fuse(int i, int j, struct isl_coalesce_info *info,
 		info[i].simplify = 0;
 	}
 	fused = isl_basic_map_finalize(fused);
-	if (ISL_F_ISSET(info[i].bmap, ISL_BASIC_MAP_RATIONAL) &&
-	    ISL_F_ISSET(info[j].bmap, ISL_BASIC_MAP_RATIONAL))
-		ISL_F_SET(fused, ISL_BASIC_MAP_RATIONAL);
 
 	fused_tab = isl_tab_from_basic_map(fused, 0);
 	if (isl_tab_detect_redundant(fused_tab) < 0)
@@ -848,7 +848,8 @@ static __isl_give isl_vec *try_tightening(struct isl_coalesce_info *info,
 	return v;
 }
 
-/* Tighten the constraints on the facet represented by info->tab.
+/* Tighten the (non-redundant) constraints on the facet represented
+ * by info->tab.
  * In particular, on input, info->tab represents the result
  * of replacing constraint k of info->bmap, i.e., f_k >= 0,
  * by the adjacent equality, i.e., f_k + 1 = 0.
@@ -873,6 +874,13 @@ static __isl_give isl_vec *try_tightening(struct isl_coalesce_info *info,
  * considered.  In particular, if the constraint only involves variables
  * that are directly mapped to a distinct set of other variables, then
  * no common divisor can be introduced and no tightening can occur.
+ *
+ * It is important to only consider the non-redundant constraints
+ * since the facet constraint has been relaxed prior to the call
+ * to this function, meaning that the constraints that were redundant
+ * prior to the relaxation may no longer be redundant.
+ * These constraints will be ignored in the fused result, so
+ * the fusion detection should not exploit them.
  */
 static isl_stat tighten_on_relaxed_facet(struct isl_coalesce_info *info,
 	int k)
@@ -906,6 +914,8 @@ static isl_stat tighten_on_relaxed_facet(struct isl_coalesce_info *info,
 
 	for (i = 0; i < info->bmap->n_ineq; ++i) {
 		if (i == k)
+			continue;
+		if (info->ineq[i] == STATUS_REDUNDANT)
 			continue;
 		if (!is_affected(info->bmap, i, affected, total))
 			continue;
